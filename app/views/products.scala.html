@@ -45,7 +45,7 @@
               <tr>
                   <!-- Display each product field value in a column -->
                   @if(env.resource("public/images/productImages/thumbnails/" + p.getId + ".jpg").isDefined) {
-                      <td><img src="/assets/images/productImages/thumbnails/@(p.getId).jpg"/></td>
+                      <td><img src="/assets/images/productImages/thumbnails/@(p.getId + ".jpg")"/></td>
                   } else {
                       <td><img src="/assets/images/productImages/thumbnails/noImage.png"/></td>
                   }
