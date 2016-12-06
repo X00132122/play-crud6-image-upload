@@ -5,6 +5,7 @@ import controllers.security.Secured;
 import play.mvc.*;
 import play.data.*;
 import play.db.ebean.Transactional;
+import play.api.Environment;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,11 +23,16 @@ public class HomeController extends Controller {
     // Declare a private FormFactory instance
     private FormFactory formFactory;
 
+    /** http://stackoverflow.com/a/37024198 **/
+    private Environment env;
+
     //  Inject an instance of FormFactory it into the controller via its constructor
     @Inject
-    public HomeController(FormFactory f) {
+    public HomeController(FormFactory f, Environment e) {
+        this.env = e;
         this.formFactory = f;
     }
+
 
     // Method retuns the logged in user (or null)
     private User getUserFromSession() {
@@ -59,6 +65,6 @@ public class HomeController extends Controller {
             productsList = Category.find.ref(cat).getProducts();
         }
 
-        return ok(products.render(productsList, categoriesList, getUserFromSession()));
+        return ok(products.render(productsList, categoriesList, getUserFromSession(), env));
     }
 }

@@ -9,10 +9,19 @@ import play.mvc.*;
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import play.api.Environment;
 
 import views.html.admin.*;
 import models.*;
 import models.users.User;
+
+import play.mvc.Http.*;
+import play.mvc.Http.MultipartFormData.FilePart;
+import java.io.File;
+
+// File upload and image editing dependencies
+import org.im4java.core.ConvertCmd;
+import org.im4java.core.IMOperation;
 
 // Require Login
 @Security.Authenticated(Secured.class)
@@ -23,10 +32,14 @@ public class AdminController extends Controller {
     // Declare a private FormFactory instance
     private FormFactory formFactory;
 
+    /** http://stackoverflow.com/a/37024198 **/
+    private Environment env;
+
     //  Inject an instance of FormFactory it into the controller via its constructor
     @Inject
-    public AdminController(FormFactory f) {
+    public AdminController(Environment e, FormFactory f) {
         this.formFactory = f;
+        this.env = e;
     }
 
     // Method returns the logged in user (or null)
@@ -51,7 +64,7 @@ public class AdminController extends Controller {
             productsList = Category.find.ref(cat).getProducts();
         }
 
-        return ok(products.render(productsList, categoriesList, getUserFromSession()));
+        return ok(products.render(productsList, categoriesList, getUserFromSession(), env));
     }
 
     // Render and return  the add new product page
@@ -64,12 +77,13 @@ public class AdminController extends Controller {
         Form<Product> addProductForm = formFactory.form(Product.class);
 
         // Render the Add Product View, passing the form object
-        return ok(addProduct.render(addProductForm, getUserFromSession()));
+        return ok(addProduct.render(addProductForm, getUserFromSession(), env));
     }
 
     @Transactional
     public Result addProductSubmit() {
 
+        String saveImageMsg;
         // Create a product form object (to hold submitted data)
         // 'Bind' the object to the submitted form (this copies the filled form)
         Form<Product> newProductForm = formFactory.form(Product.class).bindFromRequest();
@@ -77,7 +91,7 @@ public class AdminController extends Controller {
         // Check for errors (based on Product class annotations)
         if(newProductForm.hasErrors()) {
             // Display the form again
-            return badRequest(addProduct.render(newProductForm, getUserFromSession()));
+            return badRequest(addProduct.render(newProductForm, getUserFromSession(), env));
         }
 
         // Extract the product from the form object
@@ -92,9 +106,17 @@ public class AdminController extends Controller {
             p.update();
         }
 
+        // Save image
+        // Get image data
+        MultipartFormData data = request().body().asMultipartFormData();
+        FilePart image = data.getFile("upload");
+
+        // Save the image file
+        saveImageMsg = saveFile(p.getId(), image);
+
         // Set a success message in temporary flash
         // for display in return view
-        flash("success", "Product " + p.getName() + " has been created/ updated");
+        flash("success", "Product " + p.getName() + " has been created/ updated " + saveImageMsg);
 
         // Redirect to the admin home
         return redirect(routes.AdminController.products(0));
@@ -120,7 +142,7 @@ public class AdminController extends Controller {
                 return badRequest("error");
         }
         // Render the updateProduct view - pass form as parameter
-        return ok(addProduct.render(productForm, getUserFromSession()));
+        return ok(addProduct.render(productForm, getUserFromSession(), env));
     }
 
     // Delete Product by id
@@ -134,6 +156,46 @@ public class AdminController extends Controller {
 
         // Redirect to products page
         return redirect(routes.AdminController.products(0));
+    }
+
+    // Save an image file
+    public String saveFile(Long id, FilePart<File> image) {
+        if (image != null) {
+            // Get mimetype from image
+            String mimeType = image.getContentType();
+            // Check if uploaded file is an image
+            if (mimeType.startsWith("image/")) {
+                // Create file from uploaded image
+                File file = image.getFile();
+                // create ImageMagick command instance
+                ConvertCmd cmd = new ConvertCmd();
+                // create the operation, add images and operators/options
+                IMOperation op = new IMOperation();
+                // Get the uploaded image file
+                op.addImage(file.getAbsolutePath());
+                // Resize using height and width constraints
+                op.resize(300,200);
+                // Save the  image
+                op.addImage("public/images/productImages/" + id + ".jpg");
+                // thumbnail
+                IMOperation thumb = new IMOperation();
+                // Get the uploaded image file
+                thumb.addImage(file.getAbsolutePath());
+                thumb.thumbnail(60);
+                // Save the  image
+                thumb.addImage("public/images/productImages/thumbnails/" + id + ".jpg");
+                // execute the operation
+                try{
+                    cmd.run(op);
+                    cmd.run(thumb);
+                }
+                catch(Exception e){
+                    e.printStackTrace();
+                }
+                return " and image saved";
+            }
+        }
+        return "image file missing";
     }
 
 }
